@@ -14,12 +14,6 @@ type Payload struct {
 	} `json:"object"`
 }
 
-/*
-var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-}
-*/
-
 var messageSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	var p Payload
 	err := json.Unmarshal(msg.Payload(), &p)
@@ -53,17 +47,6 @@ func main() {
 	client.Disconnect(250)
 }
 
-/*
-func publish(client mqtt.Client) {
-	num := 10
-	for i := 0; i < num; i++ {
-		text := fmt.Sprintf("Message %d", i)
-		token := client.Publish("application/4/#", 0, false, text)
-		token.Wait()
-		time.Sleep(time.Second)
-	}
-}*/
-
 func sub(client mqtt.Client) {
 	topic := "application/4/#"
 	token := client.Subscribe(topic, 1, messageSubHandler)
@@ -76,7 +59,6 @@ func set(opts *mqtt.ClientOptions) {
 	var broker = "rak-gateway.local"
 	var port = 1883
 	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
-	// opts.SetDefaultPublishHandler(messagePubHandler)
 	opts.OnConnect = connectHandler
 	opts.OnConnectionLost = connectLostHandler
 }
