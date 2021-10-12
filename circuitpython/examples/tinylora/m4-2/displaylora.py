@@ -144,7 +144,6 @@ display.refresh()
 print("display refreshed")
 
 i = 0
-counter = 0
 while True:
     while True:
         if not midbutton.value:
@@ -155,15 +154,12 @@ while True:
             order.updateStatus()
             break
         else:
-            print(str(counter))
+            print(display.time_to_refresh)
         time.sleep(0.1)
-        counter += 0.1
         
-        if counter >= 180:
+        if display.time_to_refresh <= 0:
             display.show(g)
             display.refresh()
             print("display refreshed")
-            counter = 0
 
     time.sleep(3)
-    counter += 3
