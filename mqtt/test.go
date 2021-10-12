@@ -14,9 +14,11 @@ type Payload struct {
 	} `json:"object"`
 }
 
+/*
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 }
+*/
 
 var messageSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	var p Payload
@@ -36,16 +38,8 @@ var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err
 }
 
 func main() {
-	var broker = "rak-gateway.local"
-	var port = 1883
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
-	//opts.SetClientID("go_mqtt_client")
-	//opts.SetUsername("emqx")
-	//opts.SetPassword("public")
-	opts.SetDefaultPublishHandler(messagePubHandler)
-	opts.OnConnect = connectHandler
-	opts.OnConnectionLost = connectLostHandler
+	set(opts)
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
@@ -75,4 +69,14 @@ func sub(client mqtt.Client) {
 	token := client.Subscribe(topic, 1, messageSubHandler)
 	token.Wait()
 	fmt.Println("Subscribed to topic:", topic)
+}
+
+func set(opts *mqtt.ClientOptions) {
+	fmt.Println("Initializing client options")
+	var broker = "rak-gateway.local"
+	var port = 1883
+	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
+	// opts.SetDefaultPublishHandler(messagePubHandler)
+	opts.OnConnect = connectHandler
+	opts.OnConnectionLost = connectLostHandler
 }
