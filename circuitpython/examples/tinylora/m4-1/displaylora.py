@@ -1,12 +1,3 @@
-# super secret api key
-# ***REMOVED***
-
-# second one mqtt
-# ***REMOVED***
-
-# SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
-# SPDX-License-Identifier: MIT
-
 import time
 import busio
 import digitalio
@@ -18,7 +9,7 @@ import adafruit_il0373
 from adafruit_display_text import label
 
 #
-# Display Setup
+# Display Configuration
 #
 
 # Used to ensure the display is free in CircuitPython
@@ -29,12 +20,18 @@ displayio.release_displays()
 spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 epd_cs = board.D9
 epd_dc = board.D10
-leftbutton = digitalio.DigitalInOut(board.D12)
+midbutton = digitalio.DigitalInOut(board.D12)
 rightbutton = digitalio.DigitalInOut(board.D13)
-leftbutton.switch_to_input()
+
+# Set up middle button on display
+midbutton.switch_to_input()
+midbutton.direction = digitalio.Direction.INPUT
+midbutton.pull = digitalio.Pull.UP
+
+# Set up right button on display
 rightbutton.switch_to_input()
-leftbutton.direction = digitalio.Direction.INPUT
-leftbutton.pull = digitalio.Pull.UP
+rightbutton.direction = digitalio.Direction.INPUT
+rightbutton.pull = digitalio.Pull.UP
 
 # Create the displayio connection to the display pins
 display_bus = displayio.FourWire(
@@ -47,7 +44,7 @@ BLACK = 0x000000
 WHITE = 0xFFFFFF
 RED = 0xFF0000
 
-# Create the display object - the third color is red (0xff0000)
+# Create the display object
 display = adafruit_il0373.IL0373(
     display_bus,
     width=296,
@@ -59,26 +56,19 @@ display = adafruit_il0373.IL0373(
 # Create a display group for our screen objects
 g = displayio.Group()
 
-
 # Change text colors, choose from the following values:
 # BLACK, RED, WHITE
-
 FOREGROUND_COLOR = RED
 BACKGROUND_COLOR = WHITE
 
 #
-# Radio Setup
+# Radio Configuration
 #
 
 # RFM9x Breakout Pinouts
 cs = digitalio.DigitalInOut(board.D16)
 irq = digitalio.DigitalInOut(board.D6)
 rst = digitalio.DigitalInOut(board.D11)
-
-# Feather M0 RFM9x Pinouts
-# cs = digitalio.DigitalInOut(board.RFM9X_CS)
-# irq = digitalio.DigitalInOut(board.RFM9X_D0)
-# rst = digitalio.DigitalInOut(board.RFM9X_RST)
 
 # TTN Device Address, 4 Bytes, MSB
 devaddr = bytearray([0x26, 0x0C, 0xE6, 0x1B])
@@ -97,8 +87,9 @@ ttn_config = TTN(devaddr, nwkey, app, country="US")
 
 lora = TinyLoRa(spi, cs, irq, rst, ttn_config)
 
-
-ordernum = "12345" 
+#
+# Main code
+#
 
 # Set a background
 background_bitmap = displayio.Bitmap(296, 128, 1)
@@ -109,37 +100,71 @@ palette[0] = BACKGROUND_COLOR
 t = displayio.TileGrid(background_bitmap, pixel_shader=palette)
 g.append(t)
 
-# Draw simple text using the built-in font into a displayio group
-text_group = displayio.Group(scale=3, x=20, y=40)
-text = ordernum
-text_area = label.Label(terminalio.FONT, text=text, color=FOREGROUND_COLOR)
-text_group.append(text_area)  # Add this text to the text group
-g.append(text_group)
-display.show(g)
+txt_group = displayio.Group(scale=3, x=20, y=40)
+txt = label.Label(terminalio.FONT, text="0", color=FOREGROUND_COLOR)
+txt_group.append(txt)  # Add this text to the text group
+g.append(txt_group)
 
+
+# hold and display/send information about an order
+class Order:
+    def __init__(self, name):
+        self.num = name
+        self.status = "created"
+        self.updateStatus()
+
+    def getMsg(self):
+        msg = self.num + ": " + self.status
+        print(msg)
+        return msg
+
+    # send a message over LoRa
+    def sendStatus(self):
+        msg = self.getMsg()
+        msgbytes = bytes(msg, "utf-8")
+        data = bytearray(msgbytes)
+        print("Sending packet...")
+        lora.send_data(data, len(data), lora.frame_counter)
+        print("Packet sent!")
+        lora.frame_counter += 1
+
+    def updateDisplay(self):
+        msg = self.getMsg()
+        txt.text = msg
+
+    def updateStatus(self):
+        self.sendStatus()
+        self.updateDisplay()
+
+
+order = Order("98765")
+
+display.show(g)
 display.refresh()
 print("display refreshed")
 
-def updateStatus(status):
-    msg = "order " + ordernum + ": " + status
-    msgbytes = bytes(msg, "utf-8")
-    data = bytearray(msgbytes)
-    print("Sending packet...")
-    lora.send_data(data, len(data), lora.frame_counter)
-    print("Packet sent!")
-    lora.frame_counter += 1
-
 i = 0
+counter = 0
 while True:
     while True:
-        print("uwu")
-        if not leftbutton.value:
-            print("button pressed")
-            updateStatus(str(i))
+        if not midbutton.value:
             i += 1
+            print("button pressed")
+            print("i: " + str(i))
+            order.status = str(i)
+            order.updateStatus()
             break
         else:
-            print("noooo")
+            print(str(counter))
         time.sleep(0.1)
+        counter += 0.1
+        
+        if counter >= 180:
+            display.show(g)
+            display.refresh()
+            print("display refreshed")
+            counter = 0
 
     time.sleep(3)
+    counter += 3
+
