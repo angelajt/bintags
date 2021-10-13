@@ -15,13 +15,21 @@ I will have a minimum of two small devices with e-ink displays that will show an
 # Project Timeline
 
 7 September - Meet with instructor and submit proposal; start putting together bill of materials
+
 10 September - Order hardware from Adafruit
+
 24 September - Have proof-of-concept code that talks to hardware; meet with instructor; order more hardware if needed
+
 8 October - Finish code for first prototype and meet with instructor; order more hardware if needed
+
 29 October - Finish code for second prototype and meet with instructor; order more hardware if needed
+
 19 November - Finish code for third prototype and meet with instructor; order more hardware if needed
+
 10 December - Finish final product and meet with instructor
+
 13 December - Present project
+
 14 December - Submit completion report
 
 I will meet with my instructor at least once every 3 weeks to discuss my progress, plans, and results as my research project progresses.
