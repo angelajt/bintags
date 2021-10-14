@@ -25,7 +25,7 @@ Each order is an object, with attributes `num` (the order number) and `status` (
 - `updateDisplay()` updates text on the display with the message.
 - `updateStatus()` calls both `sendStatus()` and `updateDisplay()`, just for ease-of-use in the main code.
 
-# Thoughts
+## Thoughts
 
 The first iteration was successful in sending messages over LoRa and displaying these messages simultaneously. However, the libraries I'm using are limited in a couple of ways.
 
