@@ -2,7 +2,7 @@
 
 Written for my [CS2 Honors Project](contract.md).
 
-# Last Sprint: First Iteration
+# Previous Sprint: First Iteration
 
 ## Hardware
 Currently, I am using two [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857) boards. The boards are each attached to an [Adafruit LoRa Radio FeatherWing](https://www.adafruit.com/product/3231), and an [Adafruit 2.9" Tri-Color eInk Display FeatherWing](https://www.adafruit.com/product/4778). The displays have built-in buttons.
@@ -32,7 +32,7 @@ Second (and definitely more important), I can only send messages over LoRa; I ca
 
 # Current Sprint: Second Iteration
 
-For my second iteration, I plan to try out the C++ library I linked above. My goal is to be able to send and receive messages over LoRa, and to continue upating the display simultaneously. Since the boards won't be running CircuitPython anymore, I'll need to use a different library to talk to the displays (which is good because I wanted a different library anyway!). I think the [Adafruit EPD](https://github.com/adafruit/Adafruit_EPD) library will work (I used it in my proof-of-concept code in the zero-th iteration).
+For my second iteration, I plan to try out the C++ library I linked above. My goal is to be able to send and receive messages over LoRa, and to continue updating the display simultaneously. Since the boards won't be running CircuitPython anymore, I'll need to use a different library to talk to the displays (which is good because I wanted a different library anyway!). I think the [Adafruit EPD](https://github.com/adafruit/Adafruit_EPD) library will work (I used it in my proof-of-concept code in the zero-th iteration).
 
 
 # History
