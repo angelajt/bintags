@@ -2,6 +2,10 @@
 
 Written for my [CS2 Honors Project](contract.md).
 
+# Current Sprint: Second Iteration
+
+For my second iteration, I plan to try out the MCCI C++ library I mention below. My goal is to be able to send and receive messages over LoRa, and to continue updating the display simultaneously. Since the boards won't be running CircuitPython anymore, I'll need to use a different library to talk to the displays (which is good because I wanted a different library anyway!). I think the [Adafruit EPD](https://github.com/adafruit/Adafruit_EPD) library will work (I used it in my proof-of-concept code in the zero-th iteration).
+
 # Previous Sprint: First Iteration
 
 ## Hardware
@@ -28,11 +32,6 @@ The first iteration was successful in sending messages over LoRa and displaying 
 First, the display can't be updated more often than 3 minutes or the program halts. This is to help prevent the display from getting permanently damaged (e-ink displays are apparently pretty fickle in this regard), but it does get in the way of debugging while I'm programming. It sucks to have to wait 3 minutes before knowing if my code worked or not. I'd rather not switch to a more powerful OLED display, because those use up a lot more battery. Since I'm planning to attach these to bins for prolonged periods of time, I need a display that can function even if it's not powered. So this means I'll need to find another library that can talk to the e-ink display without the 3-minute hassle.
 
 Second (and definitely more important), I can only send messages over LoRa; I can't receive any messages. This isn't a problem with the LoRa radio itself, just a problem with the library (I think the library was written for sensors, which only need to send data). Unfortunately I haven't found any other CircuitPython libraries that can talk over LoRaWAN (which is how the LoRa gateway works), so I think I'm going to have to switch over to a much more versatile [C++ library](https://github.com/mcci-catena/arduino-lorawan). That library works for the Adafruit Feather M0, which is similar enough to the M4 Express that I think I can get it to work.
-
-
-# Current Sprint: Second Iteration
-
-For my second iteration, I plan to try out the C++ library I linked above. My goal is to be able to send and receive messages over LoRa, and to continue updating the display simultaneously. Since the boards won't be running CircuitPython anymore, I'll need to use a different library to talk to the displays (which is good because I wanted a different library anyway!). I think the [Adafruit EPD](https://github.com/adafruit/Adafruit_EPD) library will work (I used it in my proof-of-concept code in the zero-th iteration).
 
 
 # History
