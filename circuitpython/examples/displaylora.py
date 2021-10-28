@@ -8,6 +8,10 @@ import terminalio
 import adafruit_il0373
 from adafruit_display_text import label
 
+# TODO put this stuff in config file
+# https://docs.python.org/3/library/configparser.html
+BOARD_ID = "m4-1"
+
 #
 # Display Setup
 #
@@ -21,11 +25,28 @@ spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)  # Uses SCK and MOS
 epd_cs = board.D9
 epd_dc = board.D10
 
+# Set up middle button on display
+midbutton = digitalio.DigitalInOut(board.D12)
+midbutton.switch_to_input()
+midbutton.direction = digitalio.Direction.INPUT
+midbutton.pull = digitalio.Pull.UP
+
+# Set up right button on display
+rightbutton = digitalio.DigitalInOut(board.D13)
+rightbutton.switch_to_input()
+rightbutton.direction = digitalio.Direction.INPUT
+rightbutton.pull = digitalio.Pull.UP
+
 # Create the displayio connection to the display pins
 display_bus = displayio.FourWire(
     spi, command=epd_dc, chip_select=epd_cs, baudrate=1000000
 )
 time.sleep(1)  # Wait a bit
+
+# Set colors
+BLACK = 0x000000
+WHITE = 0xFFFFFF
+RED = 0xFF0000
 
 # Create the display object - the third color is red (0xff0000)
 display = adafruit_il0373.IL0373(
@@ -38,11 +59,6 @@ display = adafruit_il0373.IL0373(
 
 # Create a display group for our screen objects
 g = displayio.Group()
-
-# Set colors
-BLACK = 0x000000
-WHITE = 0xFFFFFF
-RED = 0xFF0000
 
 # Change text colors, choose from the following values:
 # BLACK, RED, WHITE
@@ -60,79 +76,130 @@ RADIO_FREQ_MHZ = 915.0  # Frequency of the radio in Mhz. Must match your
 
 # Define pins connected to the chip, use these if wiring up the breakout according to the guide:
 CS = digitalio.DigitalInOut(board.D16)
-RESET = digitalio.DigitalInOut(board.D11)
-# Or uncomment and instead use these if using a Feather M0 RFM9x board and the appropriate
-# CircuitPython build:
-# CS = digitalio.DigitalInOut(board.RFM9X_CS)
-# RESET = digitalio.DigitalInOut(board.RFM9X_RST)
-
-# Define the onboard LED
-LED = digitalio.DigitalInOut(board.D13)
-LED.direction = digitalio.Direction.OUTPUT
-
-# Initialize SPI bus.
-# spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+RESET = digitalio.DigitalInOut(board.D5)
 
 # Initialze RFM radio
 rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
+rfm9x.tx_power = 13 # default
 
-# Note that the radio is configured in LoRa mode so you can't control sync
-# word, encryption, frequency deviation, or other settings!
-
-# You can however adjust the transmit power (in dB).  The default is 13 dB but
-# high power radios like the RFM95 can go up to 23 dB:
-rfm9x.tx_power = 5
+#
+# Main code
+#
 
 # Set a background
 background_bitmap = displayio.Bitmap(296, 128, 1)
 # Map colors in a palette
 palette = displayio.Palette(1)
 palette[0] = BACKGROUND_COLOR
-
 # Create a Tilegrid with the background and put in the displayio group
 t = displayio.TileGrid(background_bitmap, pixel_shader=palette)
 g.append(t)
 
-# Draw simple text using the built-in font into a displayio group
-text_group = displayio.Group(scale=3, x=20, y=40)
-text = "98765"
-text_area = label.Label(terminalio.FONT, text=text, color=FOREGROUND_COLOR)
-text_group.append(text_area)  # Add this text to the text group
-g.append(text_group)
+txt_group = displayio.Group(scale=3, x=20, y=40)
+txt = label.Label(terminalio.FONT, text="0", color=FOREGROUND_COLOR)
+txt_group.append(txt)  # Add this text to the text group
+g.append(txt_group)
+
+# hold and display/send information about an order
+class Message:
+    def __init__(self, num, status):
+        self.id = BOARD_ID
+        self.dest = "pi"
+        self.counter = 0
+        self.body = num + ", " + status
+
+    def __str__(self):
+        return "MSG, " + self.id + ", " + self.dest + ", " + str(self.counter) + ", " + self.body
+    
+    def send(self):
+        while True:
+            print("Sending packet...")
+            rfm9x.send(bytes(str(self), "utf-8"), destination=255, node=255)
+            print(self)
+            time.sleep(0.1)
+            print("Packet sent!")
+
+            # get acknowledgement
+            packet = rfm9x.receive(timeout=5.0)
+            # Optionally change the receive timeout from its default of 0.5 seconds:
+            # packet = rfm9x.receive(timeout=5.0)
+            # If no packet was received during the timeout then None is returned.
+            if packet is not None:
+                packet_text = str(packet, "ascii")
+                data = packet_text.split(", ")
+                # data = [type (ack or msg), from, to, counter]
+                if data[0] == "ACK" and data[2] == BOARD_ID and data[3] == str(self.counter):
+                    print("Received acknowledgement!")
+                    self.counter += 1
+                    return
+                    
+            print("Didn't receive acknowledgement! Sending again...")
 
 
-# Place the display group on the screen
+class Order:
+    def __init__(self, name):
+        self.num = name
+        self.statusArr = ["created", "cut", "stripped", "soldered", "completed"]
+        self.counter = 0
+        self.status = self.statusArr[self.counter]
+        # self.sendStatus()
+
+    def updateDisplay(self):
+        txt.text = self.num + " " + self.status
+        
+    def updateStatus(self):
+        self.counter += 1
+        self.status = self.statusArr[self.counter]
+        self.sendStatus()
+
+    def sendStatus(self):
+        msg = Message(self.num, self.status)
+        msg.send()
+        self.updateDisplay()
+
+
+order = Order("98765")
+order.sendStatus()
+
 display.show(g)
-
-# Refresh the display to have it actually show the image
-# NOTE: Do not refresh eInk displays sooner than 180 seconds
 display.refresh()
-print("refreshed")
+print("display refreshed")
 
+i = 0
 while True:
-    rfm9x.send(bytes("Hello Steve!\r\n", "utf-8"), destination=255, node=255)
-    print("Sent Hello World message!")
-    packet = rfm9x.receive(timeout=display.time_to_refresh)
-    # Optionally change the receive timeout from its default of 0.5 seconds:
-    # packet = rfm9x.receive(timeout=5.0)
-    # If no packet was received during the timeout then None is returned.
-    if packet is None:
-        # Packet has not been received
-        LED.value = False
-        print("Received nothing! Listening again...")
-    else:
-        # Received a packet!
-        LED.value = True
-        # Print out the raw bytes of the packet:
-        print("Received (raw bytes): {0}".format(packet))
-        # And decode to ASCII text and print it too.  Note that you always
-        # receive raw bytes and need to convert to a text format like ASCII
-        # if you intend to do string processing on your data.  Make sure the
-        # sending side is sending ASCII data before you try to decode!
-        packet_text = str(packet, "ascii")
-        print("Received (ASCII): {0}".format(packet_text))
-        # Also read the RSSI (signal strength) of the last received message and
-        # print it.
-        rssi = rfm9x.last_rssi
-        print("Received signal strength: {0} dB".format(rssi))
-    # time.sleep(180)
+    while True:
+        packet = rfm9x.receive(timeout=1.0)
+        # Optionally change the receive timeout from its default of 0.5 seconds:
+        # packet = rfm9x.receive(timeout=5.0)
+        # If no packet was received during the timeout then None is returned.
+        if packet is None:
+            print("Received nothing! Listening again...")
+        else:
+            packet_text = str(packet, "ascii")
+            data = packet_text.split(", ")
+            print(data)
+
+            # data = [type (ack or msg), from, to, counter, (ordernum)]
+            if data[0] == "MSG" and data[2] == BOARD_ID:
+                # send acknowledgement
+                time.sleep(2)
+                ack = "ACK, " + data[2] + ", " + data[1] + ", " + data[3]
+                print(ack)
+                rfm9x.send(bytes(ack, "utf-8"), destination=255, node=255) 
+                time.sleep(0.1)
+
+                order = Order(data[4]) # generate a new order from message
+            packet = None
+        if not midbutton.value:
+            order.updateStatus()
+            break
+        else:
+            print(display.time_to_refresh)
+        time.sleep(0.5)
+
+        if display.time_to_refresh <= 0:
+            display.show(g)
+            display.refresh()
+            print("display refreshed")
+
+    time.sleep(3)
