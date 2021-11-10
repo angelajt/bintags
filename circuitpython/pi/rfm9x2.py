@@ -69,7 +69,7 @@ while True:
         data = packet_text.split(", ")
         print(data)
         if data[0] == "MSG" and data[2] == "pi":
-            time.sleep(1)
+            time.sleep(2)
             ack = "ACK, " + data[2] + ", " + data[1] + ", " + data[3]
             rfm9x.send(bytes(ack, "utf-8"), destination=255, node=255)
             print("ack sent!")
