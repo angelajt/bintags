@@ -10,7 +10,7 @@ from adafruit_display_text import label
 
 # TODO put this stuff in config file
 # https://docs.python.org/3/library/configparser.html
-BOARD_ID = "m4-1"
+BOARD_ID = "m4-2"
 
 #
 # Display Setup
@@ -46,7 +46,7 @@ time.sleep(1)  # Wait a bit
 # Set colors
 BLACK = 0x000000
 WHITE = 0xFFFFFF
-RED = 0xFF0000
+# RED = 0xFF0000
 
 # Create the display object - the third color is red (0xff0000)
 display = adafruit_il0373.IL0373(
@@ -54,7 +54,11 @@ display = adafruit_il0373.IL0373(
     width=296,
     height=128,
     rotation=270,
-    highlight_color=0xFF0000,
+    # highlight_color=0xFF0000,
+    grayscale=True,
+    seconds_per_frame=10,
+    black_bits_inverted=False,
+    color_bits_inverted=False
 )
 
 # Create a display group for our screen objects
@@ -63,7 +67,7 @@ g = displayio.Group()
 # Change text colors, choose from the following values:
 # BLACK, RED, WHITE
 
-FOREGROUND_COLOR = RED
+FOREGROUND_COLOR = BLACK
 BACKGROUND_COLOR = WHITE
 
 #
@@ -126,6 +130,7 @@ class Message:
             # If no packet was received during the timeout then None is returned.
             if packet is not None:
                 packet_text = str(packet, "ascii")
+                print("received " + packet_text)
                 data = packet_text.split(", ")
                 # data = [type (ack or msg), from, to, counter]
                 if data[0] == "ACK" and data[2] == BOARD_ID and data[3] == str(self.counter):
@@ -172,10 +177,15 @@ while True:
         # Optionally change the receive timeout from its default of 0.5 seconds:
         # packet = rfm9x.receive(timeout=5.0)
         # If no packet was received during the timeout then None is returned.
+        packet_text = ""
         if packet is None:
             print("Received nothing! Listening again...")
         else:
-            packet_text = str(packet, "ascii")
+            try:
+                packet_text = str(packet, "ascii")
+            except UnicodeError:
+                packet_text = str(packet)
+
             data = packet_text.split(", ")
             print(data)
 
