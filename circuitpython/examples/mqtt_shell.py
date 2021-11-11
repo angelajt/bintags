@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import atexit
-import ConfigParser
+import configparser
 from optparse import OptionParser
 import os
 import re
