@@ -1,14 +1,14 @@
 #!/usr/bin/python
 
 import atexit
-import ConfigParser
+import configparser
 from optparse import OptionParser
 import os
 import re
 import readline
 import serial
 import shlex
-from StringIO import StringIO
+from io import StringIO
 import sys
 
 import paho.mqtt.client as mqtt
@@ -58,7 +58,7 @@ def main():
 
     while True:
         try:
-            line = raw_input("")
+            line = input("")
             send(line)
         except KeyboardInterrupt:
             _exit(0)
