@@ -10,7 +10,7 @@ from adafruit_display_text import label
 
 # TODO put this stuff in config file
 # https://docs.python.org/3/library/configparser.html
-BOARD_ID = "m4-2"
+BOARD_ID = "m4-1"
 
 #
 # Display Setup
@@ -148,6 +148,7 @@ class Order:
         self.counter = 0
         self.status = self.statusArr[self.counter]
         # self.sendStatus()
+        self.sendStatus()
 
     def updateDisplay(self):
         txt.text = self.num + " " + self.status
@@ -173,7 +174,11 @@ print("display refreshed")
 i = 0
 while True:
     while True:
-        packet = rfm9x.receive(timeout=1.0)
+        try:
+            packet = rfm9x.receive(timeout=1.0)
+        except RuntimeError:
+            print("I hit that weird runtime error. Check if this affected anything.")
+
         # Optionally change the receive timeout from its default of 0.5 seconds:
         # packet = rfm9x.receive(timeout=5.0)
         # If no packet was received during the timeout then None is returned.
@@ -191,6 +196,7 @@ while True:
 
             # data = [type (ack or msg), from, to, counter, (ordernum)]
             if data[0] == "MSG" and data[2] == BOARD_ID:
+                print("uhuhh")
                 # send acknowledgement
                 time.sleep(2)
                 ack = "ACK, " + data[2] + ", " + data[1] + ", " + data[3]
@@ -205,11 +211,12 @@ while True:
             break
         else:
             print(display.time_to_refresh)
-        time.sleep(0.5)
 
         if display.time_to_refresh <= 0:
             display.show(g)
             display.refresh()
             print("display refreshed")
+
+        time.sleep(0.5)
 
     time.sleep(3)
