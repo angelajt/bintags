@@ -3,13 +3,6 @@ bintags server-side prototype
 
 derived from: https://learn.adafruit.com/lora-and-lorawan-for-raspberry-pi
 """
-import atexit
-from io import StringIO
-import os
-import re
-import readline
-import serial
-import shlex
 import sys
 import time
 # Import Blinka Libraries
