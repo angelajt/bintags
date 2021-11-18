@@ -115,7 +115,7 @@ def sendLora(num, boardid):
             packet_text = str(packet, "ascii")
             data = packet_text.split(", ")
             ack = toAck(data)
-            if ack["type"] == "ACK" && ack["counter"] == str(counter):
+            if ack["type"] == "ACK" and ack["counter"] == str(counter):
                 print("ack received!")
                 counter += 1
                 return # ack received, exit the function
