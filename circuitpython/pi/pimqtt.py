@@ -22,22 +22,6 @@ import adafruit_ssd1306
 import adafruit_rfm9x
 import paho.mqtt.client as mqtt
 
-
-# Button A
-btnA = DigitalInOut(board.D5)
-btnA.direction = Direction.INPUT
-btnA.pull = Pull.UP
-
-# Button B
-btnB = DigitalInOut(board.D6)
-btnB.direction = Direction.INPUT
-btnB.pull = Pull.UP
-
-# Button C
-btnC = DigitalInOut(board.D12)
-btnC.direction = Direction.INPUT
-btnC.pull = Pull.UP
-
 # Create the I2C interface.
 i2c = busio.I2C(board.SCL, board.SDA)
 
@@ -74,24 +58,22 @@ def toMsg(data):
             }
     return msg
 
+# convert a packet to a parsed acknowledgement
 def toAck(data):
      ack = {
             "type": data[0],
             "from": data[1],
             "to": data[2],
             "counter": data[3],
-            "ordernum": data[4],
-            "content": data[5]
             }
      return ack
 
+# receive a packet over LoRa, then parse it and send an ack if needed
 def receive():
     # check for packet rx
     packet = rfm9x.receive(timeout=5)
-    if packet is None:
-        display.show()
-        display.text('- Waiting for PKT -', 15, 20, 1)
-    else:
+
+    if packet is not None:
         display.fill(0)
 
         packet_text = str(packet, "utf-8")
@@ -100,79 +82,95 @@ def receive():
 
         try:
             msg = toMsg(data)
-        except IndexError: # the message is an ack, don't receive
+        except IndexError:
+            # the message is an ack, the # of data items won't match
+            # don't bother with acks here (these get handled in sendLora)
             return
 
+        # if a packet isn't an ack and the destination is the pi, send an ack
+        # and then send the packet over MQTT (to the application)
         if msg["to"] == "pi":
             time.sleep(2)
-            ack = "ACK, " + data[2] + ", " + data[1] + ", " + data[3]
+            ack = "ACK, " + "pi" + ", " + msg["from"] + ", " + msg["counter"]
             rfm9x.send(bytes(ack, "utf-8"), destination=255, node=255)
             print("ack sent!")
             send(packet_text)
             time.sleep(1)
 
-            display.text('RX: ', 0, 0, 1)
-            display.text(packet_text, 25, 0, 1)
+# given an order number and board ID, send a packet over LoRa with that info
+# then wait for an ack
+def sendLora(num, boardid):
+    while True:
+        # counter may be useful in confirming acks
+        global counter
 
-def sendLora(num):
-    global counter
-    data = bytes("MSG, pi, m4-1, " + str(counter) + ", " + num,"utf-8")
-    rfm9x.send(data)
-    time.sleep(0.1)
-    packet = rfm9x.receive(timeout=10.0)
-    if packet is not None:
-        packet_text = str(packet, "ascii")
-        data = packet_text.split(", ")
-        if data[0] == "ACK" and data[2] == "pi" and data[3] == str(counter):
-            print("ack received!")
-            counter += 1
-            return
-    print("no ack received! trying again")
+        data = bytes("MSG, pi, " + boardid + ", " + str(counter) + ", " + num, "utf-8")
+        rfm9x.send(data)
+
+        time.sleep(0.1)
+
+        # XXX not sure if this timeout is excessive
+        packet = rfm9x.receive(timeout=10.0)
+        if packet is not None:
+            packet_text = str(packet, "ascii")
+            data = packet_text.split(", ")
+            ack = toAck(data)
+            if ack["type"] == "ACK" && ack["counter"] == str(counter):
+                print("ack received!")
+                counter += 1
+                return # ack received, exit the function
+        else: print("no ack received! trying again") # no ack, loop again
 
 
 #
 # MQTT Setup
 #
 
-send_topic = "to-cli" # pi -> cli
-recv_topic = "from-cli" # cli -> pi
+send_topic = "to-app" # pi -> application
+recv_topic = "from-app" # application -> pi
 
-# mqtt connection
-
+# subscribe to the MQTT topic (application -> pi)
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code " + str(rc))
     client.subscribe(recv_topic)
 
+# handle incoming MQTT messages by parsing them and sending them over LoRa
+# (application will know which boards can be reset with new order nums)
 def on_message(client, userdata, msg):
-    num = str(msg.payload, "utf-8")
-    sendLora(num)
+    msgstr = str(msg, "utf-8")
+    data = msgstr.split(", ")
+    num = data[0]
+    boardid = data[1]
+
+    sendLora(num, boardid)
 
 def _exit(rc):
     sys.exit(rc)
 
+# send an MQTT message to the application
 def send(line):
     client.publish(send_topic, payload=line)
 
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
-client.connect("lorapi.local", 1883, 60)
+client.connect("lorapi.local", 1883, 60) # XXX config file?
 client.loop_start()
 
+#
+# Main Code
+#
 
 def main():
     global counter
     counter = 0
+
     while True:
+        receive() # wait for incoming LoRa messages
 
-        # draw a box to clear the image
-        display.fill(0)
-        display.text('RasPi LoRa', 35, 0, 1)
-
-        receive()
-
-        display.fill(0)
-
-        display.show()
+        # MQTT library handles everything in the background,
+        # so don't worry about it here
+        
         time.sleep(0.1)
+
 main()
