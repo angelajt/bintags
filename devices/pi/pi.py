@@ -31,6 +31,8 @@ height = display.height
 # LoRa Setup
 #
 
+sendQueue = []
+
 # Configure LoRa Radio
 CS = DigitalInOut(board.CE1)
 RESET = DigitalInOut(board.D25)
@@ -62,14 +64,18 @@ def toAck(data):
      return ack
 
 # receive a packet over LoRa, then parse it and send an ack if needed
-def receive():
+def receiveLora():
     # check for packet rx
     packet = rfm9x.receive(timeout=5)
+    print("finished receive", packet)
 
     if packet is not None:
         display.fill(0)
 
-        packet_text = str(packet, "utf-8")
+        try:
+            packet_text = str(packet, "utf-8")
+        except UnicodeDecodeError:
+            return
         data = packet_text.split(", ")
         print(data)
 
@@ -92,27 +98,36 @@ def receive():
 
 # given an order number and board ID, send a packet over LoRa with that info
 # then wait for an ack
-def sendLora(num, boardid):
-    while True:
-        # counter may be useful in confirming acks
-        global counter
+def sendLora():
+    global sendQueue
+    for msg in sendQueue:
+        boardid = msg["boardid"]
+        num = msg["num"]
+        for i in range(5):
+            # counter may be useful in confirming acks
+            global counter
 
-        data = bytes("MSG, pi, " + boardid + ", " + str(counter) + ", " + num, "utf-8")
-        rfm9x.send(data)
+            data = bytes("MSG, pi, " + boardid + ", " + str(counter) + ", " + num, "utf-8")
+            rfm9x.send(data)
 
-        time.sleep(0.1)
+            time.sleep(0.1)
 
-        # XXX not sure if this timeout is excessive
-        packet = rfm9x.receive(timeout=10.0)
-        if packet is not None:
-            packet_text = str(packet, "ascii")
-            data = packet_text.split(", ")
-            ack = toAck(data)
-            if ack["type"] == "ACK" and ack["counter"] == str(counter):
-                print("ack received!")
-                counter += 1
-                return # ack received, exit the function
-        else: print("no ack received! trying again") # no ack, loop again
+            # XXX not sure if this timeout is excessive
+            packet = rfm9x.receive(timeout=7.0)
+            if packet is not None:
+                try:
+                    packet_text = str(packet, "ascii")
+                except UnicodeDecodeError:
+                    continue
+                data = packet_text.split(", ")
+                ack = toAck(data)
+                if ack["type"] == "ACK" and ack["to"] == "pi" and ack["counter"] == str(counter):
+                    print("ack received!")
+                    counter += 1
+                    sendQueue.remove(msg)
+                    return
+            else: 
+                print("no ack received! trying again") # no ack, loop again
 
 
 #
@@ -130,12 +145,14 @@ def on_connect(client, userdata, flags, rc):
 # handle incoming MQTT messages by parsing them and sending them over LoRa
 # (application will know which boards can be reset with new order nums)
 def on_message(client, userdata, msg):
-    msgstr = str(msg, "utf-8")
-    data = msgstr.split(", ")
-    num = data[0]
-    boardid = data[1]
+    global sendQueue
 
-    sendLora(num, boardid)
+    msgstr = str(msg.payload, "utf-8")
+    data = msgstr.split(", ")
+    boardid = data[0]
+    num = data[1]
+
+    sendQueue.append(dict(boardid=boardid, num=num))
 
 def _exit(rc):
     sys.exit(rc)
@@ -159,11 +176,12 @@ def main():
     counter = 0
 
     while True:
-        receive() # wait for incoming LoRa messages
+        time.sleep(0.1)
+        receiveLora() # wait for incoming LoRa messages
+        sendLora()
 
         # MQTT library handles everything in the background,
         # so don't worry about it here
         
-        time.sleep(0.1)
 
 main()
