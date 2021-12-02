@@ -31,22 +31,11 @@ midbutton.switch_to_input()
 midbutton.direction = digitalio.Direction.INPUT
 midbutton.pull = digitalio.Pull.UP
 
-# Set up right button on display
-rightbutton = digitalio.DigitalInOut(board.D13)
-rightbutton.switch_to_input()
-rightbutton.direction = digitalio.Direction.INPUT
-rightbutton.pull = digitalio.Pull.UP
-
 # Create the displayio connection to the display pins
 display_bus = displayio.FourWire(
     spi, command=epd_dc, chip_select=epd_cs, baudrate=1000000
 )
 time.sleep(1)  # Wait a bit
-
-# Set colors
-BLACK = 0x000000
-WHITE = 0xFFFFFF
-# RED = 0xFF0000
 
 # Create the display object - the third color is red (0xff0000)
 display = adafruit_il0373.IL0373(
@@ -54,7 +43,6 @@ display = adafruit_il0373.IL0373(
     width=296,
     height=128,
     rotation=270,
-    # highlight_color=0xFF0000,
     grayscale=True,
     seconds_per_frame=10,
     black_bits_inverted=False,
@@ -62,13 +50,28 @@ display = adafruit_il0373.IL0373(
 )
 
 # Create a display group for our screen objects
-g = displayio.Group()
+displaygroup = displayio.Group()
 
-# Change text colors, choose from the following values:
-# BLACK, RED, WHITE
+# Set colors
+BLACK = 0x000000
+WHITE = 0xFFFFFF
 
 FOREGROUND_COLOR = BLACK
 BACKGROUND_COLOR = WHITE
+
+# Set a background
+background_bitmap = displayio.Bitmap(296, 128, 1)
+# Map colors in a palette
+palette = displayio.Palette(1)
+palette[0] = BACKGROUND_COLOR
+# Create a Tilegrid with the background and put in the displayio group
+t = displayio.TileGrid(background_bitmap, pixel_shader=palette)
+displaygroup.append(t)
+
+txtgroup = displayio.Group(scale=3, x=20, y=40)
+displaytxt = label.Label(terminalio.FONT, text="0", color=FOREGROUND_COLOR)
+txtgroup.append(displaytxt)  # Add this text to the text group
+displaygroup.append(txtgroup)
 
 #
 # Radio Setup
@@ -86,76 +89,138 @@ RESET = digitalio.DigitalInOut(board.D5)
 rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
 rfm9x.tx_power = 13 # default
 
+# convert a packet to a parsed message
+def toMsg(data):
+    msg = {
+            "type": data[0],
+            "from": data[1],
+            "to": data[2],
+            "counter": data[3],
+            "ordernum": data[4]
+            }
+    return msg
+
+# convert a packet to a parsed acknowledgement
+def toAck(data):
+    ack = {
+            "type": data[0],
+            "from": data[1],
+            "to": data[2],
+            "counter": data[3],
+            }
+    return ack
+
+# receive a packet over LoRa, then parse it and send an ack if needed
+def receive():
+    packet = None
+    order = None
+
+    # check for packet rx
+    try:
+        packet = rfm9x.receive(timeout=1)
+    except RuntimeError:
+        pass
+
+    if packet is not None:
+        print()
+        
+        try:
+            packet_text = str(packet, "utf-8")
+        except UnicodeError:
+            packet_text = str(packet)
+        
+        data = packet_text.split(", ")
+        print(data)
+
+        try:
+            msg = toMsg(data)
+        except IndexError:
+            # the message is an ack, the # of data items won't match
+            # don't bother with acks here (these get handled in sendLora)
+            return
+
+        # if a packet isn't an ack and the destination is the pi, send an ack
+        # and then send the packet over MQTT (to the application)
+        if msg["to"] == BOARD_ID:
+            time.sleep(2)
+            ack = "ACK, " + BOARD_ID + ", " + msg["from"] + ", " + msg["counter"]
+            try:
+                rfm9x.send(bytes(ack, "utf-8"), destination=255, node=255)
+            except RuntimeError:
+                return None
+            print("ack sent!")
+            time.sleep(1)
+            order = Order(msg["ordernum"])
+        
+    return order
+
+
 #
 # Main code
 #
 
-# Set a background
-background_bitmap = displayio.Bitmap(296, 128, 1)
-# Map colors in a palette
-palette = displayio.Palette(1)
-palette[0] = BACKGROUND_COLOR
-# Create a Tilegrid with the background and put in the displayio group
-t = displayio.TileGrid(background_bitmap, pixel_shader=palette)
-g.append(t)
 
-txt_group = displayio.Group(scale=3, x=20, y=40)
-txt = label.Label(terminalio.FONT, text="0", color=FOREGROUND_COLOR)
-txt_group.append(txt)  # Add this text to the text group
-g.append(txt_group)
-
-# hold and display/send information about an order
 class Message:
     def __init__(self, num, status):
-        self.id = BOARD_ID
         self.dest = "pi"
-        self.counter = 0
         self.body = num + ", " + status
 
     def __str__(self):
-        return "MSG, " + self.id + ", " + self.dest + ", " + str(self.counter) + ", " + self.body
+        global counter
+        # counter may be useful in confirming acks 
+
+        return "MSG, " + BOARD_ID + ", " + self.dest + ", " + str(counter) + ", " + self.body
     
     def send(self):
         while True:
-            print("Sending packet...")
-            rfm9x.send(bytes(str(self), "utf-8"), destination=255, node=255)
+            global counter
+            m = bytes(str(self), "utf-8")
+            try:
+                rfm9x.send(m, destination=255, node=255)
+            except RuntimeError:
+                time.sleep(0.1)
+                continue
             print(self)
             time.sleep(0.1)
             print("Packet sent!")
 
             # get acknowledgement
-            packet = rfm9x.receive(timeout=5.0)
+            packet = None
+            try:
+                packet = rfm9x.receive(timeout=5.0)
+            except RuntimeError:
+                pass
+
             # Optionally change the receive timeout from its default of 0.5 seconds:
             # packet = rfm9x.receive(timeout=5.0)
             # If no packet was received during the timeout then None is returned.
             if packet is not None:
                 packet_text = str(packet, "ascii")
-                print("received " + packet_text)
                 data = packet_text.split(", ")
-                # data = [type (ack or msg), from, to, counter]
-                if data[0] == "ACK" and data[2] == BOARD_ID and data[3] == str(self.counter):
-                    print("Received acknowledgement!")
-                    self.counter += 1
-                    return
-                    
-            print("Didn't receive acknowledgement! Sending again...")
+                ack = toAck(data)
 
+                # data = [type (ack or msg), from, to, counter]
+                if ack["type"] == "ACK" and ack["to"] == BOARD_ID and ack["counter"] == str(counter):
+                    print("ack received!")
+                    counter += 1
+                    return # ack received, exit the function
+                    
+            print("no ack received! trying again") # no ack, loop again
 
 class Order:
     def __init__(self, name):
         self.num = name
         self.statusArr = ["created", "cut", "stripped", "soldered", "completed"]
-        self.counter = 0
-        self.status = self.statusArr[self.counter]
-        # self.sendStatus()
+        self.statusCounter = 0
+        self.status = self.statusArr[self.statusCounter]
         self.sendStatus()
 
     def updateDisplay(self):
-        txt.text = self.num + " " + self.status
+        displaytxt.text = self.num + " " + self.status
         
     def updateStatus(self):
-        self.counter += 1
-        self.status = self.statusArr[self.counter]
+        self.statusCounter += 1
+        self.status = self.statusArr[self.statusCounter]
         self.sendStatus()
 
     def sendStatus(self):
@@ -163,60 +228,44 @@ class Order:
         msg.send()
         self.updateDisplay()
 
-
-order = Order("98765")
-order.sendStatus()
-
-display.show(g)
-display.refresh()
-print("display refreshed")
-
-i = 0
-while True:
+def eventloop():
+    order = None
+    changed = False
     while True:
-        try:
-            packet = rfm9x.receive(timeout=1.0)
-        except RuntimeError:
-            print("I hit that weird runtime error. Check if this affected anything.")
+        time.sleep(0.1)
+        o = receive()
 
-        # Optionally change the receive timeout from its default of 0.5 seconds:
-        # packet = rfm9x.receive(timeout=5.0)
-        # If no packet was received during the timeout then None is returned.
-        packet_text = ""
-        if packet is None:
-            print("Received nothing! Listening again...")
-        else:
-            try:
-                packet_text = str(packet, "ascii")
-            except UnicodeError:
-                packet_text = str(packet)
-
-            data = packet_text.split(", ")
-            print(data)
-
-            # data = [type (ack or msg), from, to, counter, (ordernum)]
-            if data[0] == "MSG" and data[2] == BOARD_ID:
-                print("uhuhh")
-                # send acknowledgement
-                time.sleep(2)
-                ack = "ACK, " + data[2] + ", " + data[1] + ", " + data[3]
-                print(ack)
-                rfm9x.send(bytes(ack, "utf-8"), destination=255, node=255) 
-                time.sleep(0.1)
-
-                order = Order(data[4]) # generate a new order from message
-            packet = None
-        if not midbutton.value:
+        # if we received an order number from the server ...
+        if o is not None:
+            changed = True
+            # change the order that we're managing
+            order = o
+            continue
+            
+        # if the button is pressed ...
+        if not midbutton.value and order is not None:
+            print()
+            changed = True
+            # send an order status update to the server
             order.updateStatus()
-            break
-        else:
-            print(display.time_to_refresh)
+            continue
 
-        if display.time_to_refresh <= 0:
-            display.show(g)
+        if changed and display.time_to_refresh <= 0:
+            print()
+            display.show(displaygroup)
+            # display.time_to_refresh = 10
+            # print(display.time_to_refresh)
             display.refresh()
+            print("time to refresh:", display.time_to_refresh)
             print("display refreshed")
+            changed = False
+            continue
 
-        time.sleep(0.5)
+        print(".", end = '')
 
-    time.sleep(3)
+def main():
+    global counter
+    counter = 0
+    eventloop()
+
+main()
