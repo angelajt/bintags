@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -21,7 +22,8 @@ var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err
 
 func main() {
 	opts := mqtt.NewClientOptions()
-	set(opts)
+	broker := os.Args[1]
+	set(opts, broker)
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
@@ -42,9 +44,8 @@ func sub(client mqtt.Client) {
 	fmt.Println("Subscribed to topic:", topic)
 }
 
-func set(opts *mqtt.ClientOptions) {
+func set(opts *mqtt.ClientOptions, broker string) {
 	fmt.Println("Initializing client options")
-	var broker = "lorapi.local"
 	var port = 1883
 	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
 	opts.OnConnect = connectHandler
