@@ -4,12 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	paho "github.com/eclipse/paho.mqtt.golang"
 )
 
 var messageSubHandler paho.MessageHandler = func(client paho.Client, msg paho.Message) {
 	fmt.Println(string(msg.Payload()))
+}
+
+type boo struct {
+}
+
+func (b boo) yeah(client paho.Client, msg paho.Message) {
+	fmt.Println(string(msg.Payload()))
+}
+
+var messageListenHandler paho.MessageHandler = func(client paho.Client, msg paho.Message) {
+	fmt.Println(string(msg.Payload()))
+
 }
 
 var connectHandler paho.OnConnectHandler = func(client paho.Client) {
@@ -22,7 +33,16 @@ var connectLostHandler paho.ConnectionLostHandler = func(client paho.Client, err
 
 func Sub(client paho.Client) {
 	topic := "to-app"
-	token := client.Subscribe(topic, 1, messageSubHandler)
+	// token := client.Subscribe(topic, 1, messageSubHandler)
+	b := boo{}
+	token := client.Subscribe(topic, 1, b.yeah)
+	token.Wait()
+	fmt.Println("Subscribed to topic:", topic)
+}
+
+func Listen(handler paho.MessageHandler, client paho.Client) {
+	topic := "to-app"
+	token := client.Subscribe(topic, 1, handler)
 	token.Wait()
 	fmt.Println("Subscribed to topic:", topic)
 }
@@ -44,9 +64,9 @@ func set(opts *paho.ClientOptions, broker string) {
 }
 
 func GetClient(broker string) (client paho.Client) {
-	opts := mqtt.NewClientOptions()
+	opts := paho.NewClientOptions()
 	set(opts, broker)
-	client = mqtt.NewClient(opts)
+	client = paho.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
