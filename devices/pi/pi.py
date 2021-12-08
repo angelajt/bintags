@@ -5,15 +5,16 @@ derived from: https://learn.adafruit.com/lora-and-lorawan-for-raspberry-pi
 """
 import sys
 import time
-# Import Blinka Libraries
 import busio
-from digitalio import DigitalInOut, Direction, Pull
+import digitalio import DigitalInOut
 import board
-# Import the SSD1306 module.
 import adafruit_ssd1306
-# Import RFM9x
 import adafruit_rfm9x
 import paho.mqtt.client as mqtt
+
+# TODO put this stuff in config file
+# https://docs.python.org/3/library/configparser.html
+BOARD_ID = "pi"
 
 # Create the I2C interface.
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -31,15 +32,95 @@ height = display.height
 # LoRa Setup
 #
 
-sendQueue = []
+class Radio:
+    counter = 0
+    sendQueue = []
 
-# Configure LoRa Radio
-CS = DigitalInOut(board.CE1)
-RESET = DigitalInOut(board.D25)
-spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, 915.0)
-rfm9x.tx_power = 23
-prev_packet = None
+    def __init__(self):
+        # Configure LoRa Radio
+        CS = DigitalInOut(board.CE1)
+        RESET = DigitalInOut(board.D25)
+        spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+        rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, 915.0)
+        rfm9x.tx_power = 23
+
+    # receive a packet over LoRa and return it
+    def receive(self, t):
+        packet = None
+        try:
+            # acks probably need longer timeouts, so make timeout flexible
+            packet = self.rfm9x.receive(timeout=t)
+        # weird unexplained RuntimeError that we get sometimes (just ignore it and try again)
+        except RuntimeError:
+            time.sleep(0.1)
+            pass
+        return packet
+    
+    def send(self, msg):
+        m = bytes(str(msg), "utf-8")
+        try:
+            self.rfm9x.send(m, destination=255, node=255)
+        # weird unexplained RuntimeError that we get sometimes (just ignore it and try again)
+        except RuntimeError: 
+            time.sleep(0.1)
+            pass
+
+    # receive an order over LoRa
+    def receiveOrder(self):
+        order = None
+        packet = self.receive(1)
+
+        if packet is not None:
+            msg = Message.parse(packet)
+            if msg is None: # garbage message
+                return None
+            print() # make a newline for easy reading in the serial console
+            
+            if msg.isMsg(): # ensure the message is a valid order message to this board
+                self.sendAck(msg)
+                print("ack sent!")
+                order = Order(msg.ordernum)
+        
+        return order
+    
+    # send a given message over LoRa, checking for an acknowledgement
+    def sendMsg(self, msg):
+        self.counter += 1 # add to the counter
+        msg.counter = self.counter
+        gotAck = False
+        # send a message, looping over and over until we get an ack
+        while not gotAck:
+
+            self.send(msg)
+            print("sending:", msg)
+            
+            time.sleep(0.1)
+            print("message sent!")
+
+            gotAck = self.receiveAck()
+
+            if not gotAck:
+                print("no ack received! trying again") # no ack, loop again
+
+    # receive an acknowledgement over LoRa and return it
+    def receiveAck(self):
+        gotAck = False
+        packet = self.receive(5)
+
+        if packet is not None:
+            msg = Message.parse(packet)
+            if msg is None: # garbage message
+                return
+            if msg.isAck(self.counter):
+                gotAck = True
+        
+        return gotAck
+    
+    def sendAck(self, msg):
+        time.sleep(1)
+        ack = Message(type = "ACK", ordernum = msg.ordernum, status = msg.status, counter = msg.counter)
+        self.send(ack)
+        return
 
 # convert a packet to a parsed message
 def toMsg(data):
