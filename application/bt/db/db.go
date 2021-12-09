@@ -124,8 +124,9 @@ func insert(ctx context.Context, db *sql.DB, b board.Board) (err error) {
 	return
 }
 
-func Get(boardid string) (b board.Board) {
-	b = board.NewBoard(boardid, "none", "unreal")
+/*
+func GetAll() (boards []board.Board) {
 
 	return
 }
+*/

@@ -33,24 +33,21 @@ var connectLostHandler paho.ConnectionLostHandler = func(client paho.Client, err
 
 func Sub(client paho.Client) {
 	topic := "to-app"
-	// token := client.Subscribe(topic, 1, messageSubHandler)
 	b := boo{}
-	token := client.Subscribe(topic, 1, b.yeah)
+	token := client.Subscribe(topic, 2, b.yeah)
 	token.Wait()
 	fmt.Println("Subscribed to topic:", topic)
 }
 
-func Listen(handler paho.MessageHandler, client paho.Client) {
-	topic := "to-app"
-	token := client.Subscribe(topic, 1, handler)
+func Listen(handler paho.MessageHandler, client paho.Client, topic string) {
+	token := client.Subscribe(topic, 2, handler)
 	token.Wait()
 	fmt.Println("Subscribed to topic:", topic)
 }
 
-func Pub(client paho.Client, args []string) {
+func Pub(client paho.Client, topic string, args []string) {
 	msg := strings.Join(args, ", ")
-	topic := "from-app"
-	token := client.Publish(topic, 1, true, msg)
+	token := client.Publish(topic, 2, false, msg)
 	token.Wait()
 	fmt.Println("Published message:", msg)
 }
