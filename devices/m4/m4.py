@@ -7,11 +7,14 @@ import displayio
 import terminalio
 import adafruit_il0373
 from adafruit_display_text import label
+import json
 
 # TODO put this stuff in config file
 # https://docs.python.org/3/library/configparser.html
-BOARD_ID = "m4-1"
-DEST_ID = "pi"
+conffn = open("bt.conf")
+conf = json.load(conffn)
+BOARD_ID = conf["id"]
+DEST_ID = conf["gateway"]
 
 # ensure the display is free
 displayio.release_displays()
@@ -20,12 +23,20 @@ spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 
 
 
-
-#
-# Button
-#
-
 class Button:
+    """
+    Represents a physical button that's on the display.
+
+        __init__(): Constructor for the Button class. Declares what pin the
+        button talks to on the board, and additional info about the type of
+        input the button provides. Because I'm using other pins for the display
+        and LoRa radio, I had to cut the trace for the SD card on the display
+        in order to use this pin.
+
+        isOn(): Returns a boolean that describes whether or not the button is 
+        pushed.
+    """
+
     def __init__(self):
         # set up middle button 
         # (physically it's on the display, but it doesn't directly
@@ -39,11 +50,21 @@ class Button:
         return not self.button.value # reverse of what you'd expect :P
 
 
-#
-# Display
-#
 
 class Display:
+    """
+        Represents the e-paper display, which shows the order number and
+        status.
+
+        __init__(): Constructor for the Display class. Declares what pins the 
+        display talks to on the board, and additional info about the display.
+
+        refresh(): Refresh the physical display with the display group.
+
+        update(order): Update the display group with a new order, but don't 
+        refresh.
+    """
+
     def __init__(self):
 
         # define pins
@@ -103,7 +124,31 @@ class Display:
 #
 # LoRa Radio
 #
+
 class Radio:
+    """
+    Represents the LoRa radio, which sends updated order statuses and receives
+    updated order numbers to the gateway (Raspberry Pi).
+
+        __init__(): Constructor for the Radio class. Declares what pins the 
+        LoRa radio talks to on the board, and additional info about the radio.
+
+        receive(t): With a timeout of t seconds, wait for a LoRa packet and
+        return it. Return None if a packet hasn't been received.
+
+        send(msg): With a given Message object msg, send a LoRa packet
+        containing the text of that message.
+
+        receiveOrder(): receive a packet, and parse it and and send an 
+        acknowledgement. Return a new Order object with the new order number
+        that was given in the message. If the message was not intended for this
+        board, return None.
+
+        receiveAck(): receive an acknowledgement and return it
+
+        sendAck(): send an acknowledgement for a given Message object
+    """
+
     counter = 0
 
     def __init__(self):
@@ -138,7 +183,6 @@ class Radio:
             time.sleep(0.1)
             pass
 
-    # receive an order over LoRa
     def receiveOrder(self):
         order = None
         packet = self.receive(1)
@@ -156,7 +200,6 @@ class Radio:
         
         return order
     
-    # send a given message over LoRa, checking for an acknowledgement
     def sendMsg(self, msg):
         self.counter += 1 # add to the counter
         msg.counter = self.counter
@@ -175,7 +218,6 @@ class Radio:
             if not gotAck:
                 print("no ack received! trying again") # no ack, loop again
 
-    # receive an acknowledgement over LoRa and return it
     def receiveAck(self):
         gotAck = False
         packet = self.receive(5)
@@ -197,8 +239,26 @@ class Radio:
 
 
 class Message:
+    """
+    Represents a message that is sent/received over LoRa.
+
+    __init__(): Constructor for the Message class. 
+
+    __str__(): Return the message as a string, for sending over LoRa.
+
+    parse(): Create a Message object from a given LoRa packet.
+
+    fromOrder(): Create a Message object from a given Order object.
+
+    isMsg(): Verify if a message has the MSG type, and is intended for
+    this board.
+
+    isAck(): Verify if a message has the ACK type, and is intended for this
+    board. Also check the counter to make sure it's acknowledging the right
+    message.
+    """
     def __init__(self, type = "MSG", source = BOARD_ID, dest = DEST_ID, ordernum = None, status = None, counter = None):
-        self.type = type
+        self.type = type # types can be MSG or ACK
         self.source = source
         self.dest = dest
         self.counter = counter
@@ -212,7 +272,7 @@ class Message:
     def parse(cls, packet):
         try:
             packet_text = str(packet, "utf-8")
-        except UnicodeDecodeError:
+        except UnicodeError:
             return None # garbage packet
         print("packet text: ", packet_text)
         data = packet_text.split(", ")
@@ -227,6 +287,11 @@ class Message:
         
         return self
 
+    @classmethod
+    def fromOrder(cls, order):
+        return cls(ordernum = order.num, status = order.status)
+
+
     def isMsg(self):
         if self.type == "MSG" and self.dest == BOARD_ID:
             return True
@@ -237,12 +302,7 @@ class Message:
         if self.type == "ACK" and self.dest == BOARD_ID and self.counter == str(counter):
             return True
         else:
-            return False
-
-    @classmethod
-    def fromOrder(cls, order):
-        return cls(ordernum = order.num, status = order.status)
-        
+            return False        
 
 class Order:
     def __init__(self, num):
