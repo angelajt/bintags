@@ -1,0 +1,459 @@
+\documentclass{article}
+\usepackage{lmodern}
+\PassOptionsToPackage{hyphens}{url} % url is loaded by hyperref
+\usepackage{xcolor}
+\definecolor{pink}{HTML}{EB877C}
+\usepackage[colorlinks = true,
+            urlcolor = pink]{hyperref}
+\hypersetup{
+            pdfborder={0 0 0},
+            breaklinks=true}
+            
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+
+% set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+
+
+\date{}
+
+\begin{document}
+
+\section{Overview}\label{overview}
+
+For my CS2 Honors Project, I wanted to make a system that could remotely
+track orders being assembled, using OOP principles.~
+
+\subsection{Criteria}\label{criteria}
+
+From the ``Outcomes/Product'' section of the contract:~
+
+\begin{quote}
+I will have a minimum of two small devices with e-ink displays that will
+show an order number and some information about the order. The devices
+will be able to be charged in some way when they aren't in use (like
+through solar power or induction). The devices will communicate with a
+central host over BTLE (Bluetooth Low Energy) or LoRa (Long Range), and
+the host can update each device with new information. I will be able to
+push buttons on each device to update its order status. The host can
+also see a list of all the devices and their order information,
+including status.
+\end{quote}
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  {[} {]} send messages over LoRa
+\item
+  {[} {]} receive messages over LoRa
+\item
+  {[} {]} display order numbers and statuses
+\item
+  {[} {]} update displays freely (every time an order updates)
+\item
+  {[} {]} button press updates an order's status
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over LoRa
+\item
+  {[} {]} receives messages over LoRa
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Central Host:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} stores boards/orders in a database
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+\subsection{Hardware}\label{hardware}
+
+As expected, the hardware I was using changed over the course of the
+first and second iterations. Listed below is the hardware I am using for
+the final product.
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  2 \href{https://www.adafruit.com/product/3857}{Adafruit Feather M4
+  Express} boards~
+\item
+  2 \href{https://www.adafruit.com/product/3231}{Adafruit LoRa Radio
+  FeatherWing} boards~
+\item
+  2 \href{https://www.adafruit.com/product/4777}{Adafruit 2.9" Greyscale
+  eInk Displays}~
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  1
+  \href{https://www.raspberrypi.com/products/raspberry-pi-3-model-b/}{Raspberry
+  Pi 3B}
+\item
+  1 \href{https://www.adafruit.com/product/4074}{Adafruit LoRa Radio
+  Bonnet}
+\end{itemize}
+
+Central host:
+
+\begin{itemize}
+\item
+  My own computer
+\end{itemize}
+
+\section{First Iteration}\label{first-iteration}
+
+\subsection{Criteria}\label{criteria-1}
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  {[}x{]} send messages over LoRa
+\item
+  {[} {]} receive messages over LoRa
+\item
+  {[}x{]} display order numbers and statuses
+\item
+  {[} {]} update displays freely (every time an order updates)
+\item
+  {[}x{]} button press updates an order's status
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over LoRa
+\item
+  {[}x{]} receives messages over LoRa
+\item
+  {[}x{]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Central Host:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[}x{]} receives messages over MQTT
+\item
+  {[} {]} stores boards/orders in a database
+\item
+  {[} {]} has command line interface
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+\subsection{Process and Outcome}\label{process-and-outcome}
+
+The bin tags in the first iteration were successful in sending messages
+over LoRa and displaying these messages simultaneously. However, the
+libraries I was using were limited in a couple of ways.
+
+First, the displays couldn't be updated more often than 3 minutes or the
+program halted. This was to help prevent the displays from getting
+permanently damaged (e-ink displays are apparently pretty fickle in this
+regard), but it did get in the way of debugging while I was programming.
+It sucked to have to wait 3 minutes before knowing if my code worked or
+not. I didn't want to switch to more powerful OLED displays, because
+those used up a lot more battery. Since I am planning to attach these to
+bins for prolonged periods of time, I needed displays that could
+function even if they weren't powered. So I thought this meant I needed
+to find another library that could talk to the e-ink display without the
+3-minute hassle.
+
+Second (and definitely more important), I could only send messages over
+LoRa; I couldn't receive any messages. This wasn't a problem with the
+LoRa radio itself, just a problem with the library (I think the library
+was written for sensors, which only need to send data). In this
+iteration, the gateway I was using operated on a higher-level networking
+layer for LoRa called LoRaWAN, which had more server-side support.
+Unfortunately I hadn't found any other CircuitPython libraries that
+could talk over LoRaWAN, so I thought I was going to have to switch over
+to a much more versatile
+\href{https://github.com/mcci-catena/arduino-lorawan}{C++ library}.
+
+\section{Second Iteration}\label{second-iteration}
+
+\subsection{Criteria}\label{criteria-2}
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  {[}x{]} send messages over LoRa
+\item
+  {[}x{]} receive messages over LoRa
+\item
+  {[}x{]} display order numbers and statuses
+\item
+  {[} {]} update displays freely (every time an order updates)
+\item
+  {[}x{]} button press updates an order's status
+\item
+  {[}x{]} relies on OOP (classes and methods)
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  {[}x{]} sends messages over LoRa
+\item
+  {[}x{]} receives messages over LoRa
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Central Host:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} stores boards/orders in a database
+\item
+  {[} {]} has command line interface
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+\subsection{Process and Outcome}\label{process-and-outcome-1}
+
+For my second iteration, I planned to try out the MCCI C++ library I
+mentioned above. My goal was to be able to send and receive messages
+over LoRaWAN, and to continue updating the display simultaneously. Since
+the boards wouldn't be running CircuitPython anymore, I planned to use a
+different library to talk to the displays, such as the
+\href{https://github.com/adafruit/Adafruit_EPD}{Adafruit EPD} library.
+
+After some grueling attempts to use the Arduino IDE to talk to the M4
+boards, and trying to figure out how to use the MCCI library, I realized
+that I wasn't making as much progress as I would have liked. I also
+realized that I had a much more straightforward way of getting two
+boards to talk to each other over LoRa, using
+\href{https://github.com/adafruit/Adafruit_CircuitPython_RFM9x}{Adafruit's
+RFM9x library}. Instead of relying on LoRaWAN, I was just going to deal
+with the lower-level LoRa layer directly, and write more of my own
+server-side code for the gateway and central host.
+
+By the end of the second iteration I had a simple gateway working that
+could receive/send messages to/from the bin tags over LoRa. I also
+started incorporating more object-oriented programming ideas into the
+code for the bin tags, starting with a \texttt{Message} and
+\texttt{Order} class. I still had a 3-minute display refresh problem,
+but I figured it wasn't worth switching over to C++ to get around that
+problem.
+
+\section{Third Iteration}\label{third-iteration}
+
+\subsection{Criteria}\label{criteria-3}
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  {[}x{]} send messages over LoRa
+\item
+  {[}x{]} receive messages over LoRa
+\item
+  {[}x{]} display order numbers and statuses
+\item
+  {[}x{]} update displays freely (every time an order updates)
+\item
+  {[}x{]} button press updates an order's status
+\item
+  {[}x{]} relies on OOP (classes and methods)
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  {[}x{]} sends messages over LoRa
+\item
+  {[}x{]} receives messages over LoRa
+\item
+  {[}x{]} sends messages over MQTT
+\item
+  {[} {]} receives messages over MQTT
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Central Host:
+
+\begin{itemize}
+\item
+  {[} {]} sends messages over MQTT
+\item
+  {[}x{]} receives messages over MQTT
+\item
+  {[} {]} stores boards/orders in a database
+\item
+  {[} {]} has command line interface
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+\subsection{Process and Outcome}\label{process-and-outcome-2}
+
+In my third iteration, I finally figured out how to get around the
+180-second display refresh constraint that was built into the
+\texttt{displayio} library on the bin tags.~
+
+I added more code to the gateway so that it could send order updates
+over MQTT. I also wrote a simple Go program that could subscribe to an
+MQTT topic and see the messages that the gateway published.
+
+\section{Final Iteration}\label{final-iteration}
+
+\subsection{Criteria}\label{criteria-4}
+
+Bin Tags:
+
+\begin{itemize}
+\item
+  {[}x{]} send messages over LoRa
+\item
+  {[}x{]} receive messages over LoRa
+\item
+  {[}x{]} display order numbers and statuses
+\item
+  {[}x{]} update displays freely (every time an order updates)
+\item
+  {[}x{]} button press updates an order's status
+\item
+  {[}x{]} relies on OOP (classes and methods)
+\end{itemize}
+
+Gateway:
+
+\begin{itemize}
+\item
+  {[}x{]} sends messages over LoRa
+\item
+  {[}x{]} receives messages over LoRa
+\item
+  {[}x{]} sends messages over MQTT
+\item
+  {[}x{]} receives messages over MQTT
+\item
+  {[} {]} relies on OOP (classes and methods)
+\end{itemize}
+
+Central Host:
+
+\begin{itemize}
+\item
+  {[}x{]} sends messages over MQTT
+\item
+  {[}x{]} receives messages over MQTT
+\item
+  {[}x{]} stores boards/orders in a database
+\item
+  {[}x{]} has command line interface
+\item
+  {[}x{]} relies on OOP (classes and methods)
+\end{itemize}
+
+\subsection{Process and Outcome}\label{process-and-outcome-3}
+
+I refactored the Python code on the bin tags to incorporate a lot more
+OOP principles. Every physical component of the bin tag is now
+represented by a class (\texttt{Button}, \texttt{Display},
+\texttt{Radio}), and I also refactored my \texttt{Message} and
+\texttt{Order} classes to make the code more streamlined. While the code
+on the gateway still lacks classes and methods, it can be easily
+refactored with a similar framework (\texttt{Message}, \texttt{Order},
+and \texttt{Radio} classes).
+
+Most importantly, I wrote the bulk of the central host code in this
+iteration, using Go instead of Python. The central host is accessed by
+two main commands:
+
+\begin{itemize}
+\item
+  \texttt{serve} starts the server, which listens for MQTT messages and
+  sends them, and it also has access to the database.
+\item
+  \texttt{reset} tells the client to update a board with a new order
+  number, and the client in turn tells the server (over MQTT) to update
+  that board. Since the client doesn't have direct access to the
+  database and can talk to the server over MQTT, I can run the
+  \texttt{serve} command on my own computer and the \texttt{reset}
+  command on a different computer, and it would still work.
+\end{itemize}
+
+\section{Final Thoughts}\label{final-thoughts}
+
+Overall, I am very happy with how this project turned out. Although it
+doesn't use C++, I learned a lot in CS 2 that I was able to apply to my
+project. My code has classes with methods and constructors, exception
+handling with try-catch blocks, and pointers. Since Python is a
+dynamically typed language, I don't need to use templates for it because
+it is template-like by default. Go doesn't have classes or constructors,
+but instead I can attach methods to structs, and I can write functions
+that work like constructors (returning a struct from some given data).
+
+\subsection{Going Forward}\label{going-forward}
+
+Even though I fulfilled my honors contract, I have some goals for
+continuing this project:
+
+\begin{itemize}
+\item
+  Refactor gateway code to use OOP (not too difficult, since I already
+  have a similar framework in the bin tag code)
+\item
+  Write a \texttt{list} command for the command line interface on the
+  central host, to be able to list all of the orders without direct
+  access to the database file (also not too difficult, since I already
+  have code that accesses the database)
+\item
+  Design and 3D print holders for the bin tags, so that they can be
+  attached to bins
+\item
+  Design and 3D print a case for the gateway
+\end{itemize}
+
+\end{document}
